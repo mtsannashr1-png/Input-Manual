@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Input Absensi Manual</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Arial, Helvetica, sans-serif; color:#111; background:#f4f7f4; font-size:15px; }
+  header { background:#1b5e20; color:#fff; padding:12px 14px; }
+  header h1 { margin:0; font-size:17px; }
+  header p { margin:2px 0 0; font-size:12px; opacity:.85; }
+  .panel { background:#e8f5e9; border-bottom:2px solid #1b5e20; padding:10px 14px; display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  .panel label { display:flex; flex-direction:column; font-size:12px; font-weight:bold; gap:3px; }
+  .panel input, .panel select { padding:8px; font-size:15px; border:1px solid #888; border-radius:6px; background:#fff; }
+  button { padding:9px 14px; font-size:15px; border:0; border-radius:6px; cursor:pointer; background:#1b5e20; color:#fff; font-weight:bold; }
+  button.abu { background:#607d8b; }
+  button:disabled { opacity:.5; cursor:default; }
+  #pesan { padding:8px 14px; font-weight:bold; min-height:20px; }
+  #pesan.err { color:#b71c1c; }
+  #pesan.ok { color:#1b5e20; }
+  .bar { position:sticky; top:0; background:#fff; border-bottom:1px solid #ccc; padding:8px 14px; display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; z-index:5; }
+  .ring { font-size:13px; color:#333; flex:1; min-width:200px; }
+  .baris { background:#fff; border-bottom:1px solid #ddd; padding:8px 14px; display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; justify-content:space-between; }
+  .nama { font-weight:bold; flex:1 1 220px; }
+  .nama small { font-weight:normal; color:#666; display:block; }
+  .pil { display:flex; gap:5px; flex-wrap:wrap; }
+  .pil label { cursor:pointer; }
+  .pil input { position:absolute; opacity:0; pointer-events:none; }
+  .pil span { display:inline-block; padding:7px 11px; border:1px solid #999; border-radius:16px; font-size:13px; background:#fafafa; color:#333; min-width:54px; text-align:center; }
+  .pil input:checked + span.h { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  .pil input:checked + span.t { background:#ef6c00; color:#fff; border-color:#ef6c00; }
+  .pil input:checked + span.s { background:#1565c0; color:#fff; border-color:#1565c0; }
+  .pil input:checked + span.i { background:#6a1b9a; color:#fff; border-color:#6a1b9a; }
+  .pil input:checked + span.a { background:#c62828; color:#fff; border-color:#c62828; }
+  .pil input:focus-visible + span { outline:2px solid #000; }
+  .kunci { color:#555; font-size:13px; background:#eee; padding:6px 10px; border-radius:6px; }
+  .info { padding:8px 14px; color:#555; font-size:12px; }
+  .simpan { padding:12px 14px; background:#fff; border-top:2px solid #1b5e20; position:sticky; bottom:0; display:flex; gap:10px; align-items:center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="sekolah">Input Absensi Manual</h1>
+  <p>Input absensi manual per kelas</p>
+</header>
+
+<div class="panel">
+  <label id="pinWrap" style="display:none">PIN petugas
+    <input type="password" id="pin" autocomplete="off" style="width:110px">
+  </label>
+  <label>Tanggal <input type="date" id="tgl"></label>
+  <label>Kelas
+    <select id="kelas">
+      <option value="">- pilih kelas -</option>
+    </select>
+  </label>
+  <button onclick="muat()" id="btnMuat" disabled>Tampilkan siswa</button>
+</div>
+
+<div id="pesan">Memuat data kelas...</div>
+<div class="info">Semua siswa awalnya Hadir. Ubah yang tidak hadir, lalu tekan Simpan. Siswa yang sudah scan tidak bisa diubah di sini.</div>
+
+<div id="daftar"></div>
+
+<script>
+  // Alamat web app Apps Script (deployment /exec). Ganti di sini kalau URL berubah.
+  var API = "https://script.google.com/macros/s/AKfycbx2kutG80NBvmmy-Pf5OoTYsVbv_NKryk_eKTY2jiD_aDojFGVm3_mTDJz2OiR9KNYb/exec";
+
+  var STATUS = [['H','Hadir','h'], ['T','Terlambat','t'], ['S','Sakit','s'], ['I','Izin','i'], ['A','Alfa','a']];
+  var data = null;
+  var perluPin = false;
+
+  function $(id) { return document.getElementById(id); }
+  function pad(n) { return ('0' + n).slice(-2); }
+  (function () {
+    var n = new Date();
+    $('tgl').value = n.getFullYear() + '-' + pad(n.getMonth() + 1) + '-' + pad(n.getDate());
+  })();
+  function pinVal() { return perluPin ? $('pin').value : ''; }
+  function pesan(t, kelas) { var p = $('pesan'); p.textContent = t || ''; p.className = kelas || ''; }
+  function el(tag, teks, kelas) {
+    var e = document.createElement(tag);
+    if (teks !== undefined && teks !== null) e.textContent = teks;
+    if (kelas) e.className = kelas;
+    return e;
+  }
+
+  // Panggil Apps Script lewat POST. Content-Type text/plain menghindari preflight CORS.
+  function panggil(payload) {
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    }).then(function (r) {
+      if (!r.ok) throw new Error('Server menjawab ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (j && j.galat) throw new Error(j.galat);
+      return j;
+    }).catch(function (e) {
+      if (e instanceof TypeError) throw new Error('Gagal terhubung. Periksa internet lalu coba lagi.');
+      throw e;
+    });
+  }
+
+  // Saat halaman dibuka: ambil nama sekolah, apakah perlu PIN, dan daftar kelas
+  panggil({ aksi: 'manualInfo' }).then(function (r) {
+    $('sekolah').textContent = r.sekolah || 'Input Absensi Manual';
+    perluPin = !!r.perluPin;
+    $('pinWrap').style.display = perluPin ? 'flex' : 'none';
+    var sel = $('kelas');
+    (r.kelas || []).forEach(function (k) {
+      var o = document.createElement('option');
+      o.value = k; o.textContent = k;
+      sel.appendChild(o);
+    });
+    $('btnMuat').disabled = false;
+    pesan('');
+  }).catch(function (e) {
+    pesan(e.message || String(e), 'err');
+  });
+
+  function muat() {
+    var tgl = $('tgl').value, kelas = $('kelas').value;
+    if (!tgl) { pesan('Pilih tanggal dulu.', 'err'); return; }
+    if (!kelas) { pesan('Pilih kelas dulu.', 'err'); return; }
+    pesan('Memuat...'); $('daftar').innerHTML = ''; $('btnMuat').disabled = true;
+    panggil({ aksi: 'manualMuat', tgl: tgl, kelas: kelas, pin: pinVal() })
+      .then(function (r) { $('btnMuat').disabled = false; data = r; pesan(''); gambar(); })
+      .catch(function (e) { $('btnMuat').disabled = false; data = null; pesan(e.message || String(e), 'err'); });
+  }
+
+  function gambar() {
+    var d = $('daftar');
+    d.innerHTML = '';
+    if (data.izinGagal) pesan('Peringatan: data Izin Siswa tidak bisa dibuka, jadi izin dari orang tua belum tampil.', 'err');
+
+    var bar = el('div', null, 'bar');
+    var ring = el('div', null, 'ring'); ring.id = 'ring';
+    var semua = el('button', 'Semua Hadir', 'abu'); semua.onclick = semuaHadir;
+    bar.appendChild(ring); bar.appendChild(semua);
+    d.appendChild(bar);
+
+    data.siswa.forEach(function (s, i) {
+      var b = el('div', null, 'baris');
+      var n = el('div', null, 'nama');
+      n.appendChild(document.createTextNode((i + 1) + '. ' + s.nama));
+      if (s.izin) n.appendChild(el('small', 'Izin/sakit sudah tercatat'));
+      b.appendChild(n);
+      if (s.terkunci) {
+        b.appendChild(el('div', 'Sudah scan ' + s.jam + ' (' + (s.status === 'T' ? 'Terlambat' : 'Hadir') + ')', 'kunci'));
+      } else {
+        var pil = el('div', null, 'pil');
+        STATUS.forEach(function (st) {
+          var l = document.createElement('label');
+          var r = document.createElement('input');
+          r.type = 'radio'; r.name = 'st' + i; r.value = st[0];
+          if (s.status === st[0]) r.checked = true;
+          r.onchange = hitung;
+          l.appendChild(r); l.appendChild(el('span', st[1], st[2]));
+          pil.appendChild(l);
+        });
+        b.appendChild(pil);
+      }
+      d.appendChild(b);
+    });
+
+    var f = el('div', null, 'simpan');
+    var sv = el('button', 'Simpan'); sv.id = 'btnSimpan'; sv.onclick = simpan;
+    f.appendChild(sv);
+    d.appendChild(f);
+    hitung();
+  }
+
+  function nilai(i) {
+    var r = document.querySelector('input[name="st' + i + '"]:checked');
+    return r ? r.value : null;
+  }
+
+  function hitung() {
+    var c = { H: 0, T: 0, S: 0, I: 0, A: 0 }, kunci = 0;
+    data.siswa.forEach(function (s, i) {
+      if (s.terkunci) { kunci++; return; }
+      var v = nilai(i); if (v) c[v]++;
+    });
+    $('ring').textContent = 'Hadir ' + c.H + ' | Terlambat ' + c.T + ' | Sakit ' + c.S + ' | Izin ' + c.I + ' | Alfa ' + c.A +
+      (kunci ? ' | Sudah scan ' + kunci : '');
+  }
+
+  function semuaHadir() {
+    data.siswa.forEach(function (s, i) {
+      if (s.terkunci) return;
+      var r = document.querySelector('input[name="st' + i + '"][value="H"]');
+      if (r) r.checked = true;
+    });
+    hitung();
+  }
+
+  function simpan() {
+    var daftar = [];
+    data.siswa.forEach(function (s, i) {
+      if (s.terkunci) return;
+      var v = nilai(i);
+      if (v) daftar.push({ nis: s.nis, status: v });
+    });
+    if (!daftar.length) { pesan('Tidak ada yang perlu disimpan.', 'err'); return; }
+    if (!confirm('Simpan absensi kelas ' + $('kelas').value + ' tanggal ' + $('tgl').value + '?')) return;
+    $('btnSimpan').disabled = true; pesan('Menyimpan...');
+    var tgl = $('tgl').value, kelas = $('kelas').value;
+    panggil({ aksi: 'manualSimpan', tgl: tgl, kelas: kelas, daftar: daftar, pin: pinVal() })
+      .then(function (r) {
+        pesan('Tersimpan: Hadir ' + r.hadir + ', Terlambat ' + r.terlambat + ', Sakit ' + r.sakit + ', Izin ' + r.izin + ', Alfa ' + r.alfa +
+              (r.dilewati ? ' (' + r.dilewati + ' siswa sudah scan, tidak diubah)' : '') + '.', 'ok');
+        return panggil({ aksi: 'manualMuat', tgl: tgl, kelas: kelas, pin: pinVal() });
+      })
+      .then(function (r2) { data = r2; gambar(); })
+      .catch(function (e) { var b = $('btnSimpan'); if (b) b.disabled = false; pesan(e.message || String(e), 'err'); });
+  }
+</script>
+</body>
+</html>
