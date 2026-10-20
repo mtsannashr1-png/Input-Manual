@@ -4,25 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Input Absensi Manual</title>
-<meta http-equiv="refresh" content="0; url=https://script.google.com/macros/s/AKfycbx2kutG80NBvmmy-Pf5OoTYsVbv_NKryk_eKTY2jiD_aDojFGVm3_mTDJz2OiR9KNYb/exec?halaman=manual">
 <style>
-  body { margin:0; font-family: Arial, Helvetica, sans-serif; background:#f4f7f4; color:#111;
-         display:flex; align-items:center; justify-content:center; min-height:100vh; text-align:center; }
-  .box { padding:24px; max-width:360px; }
-  h1 { font-size:18px; margin:0 0 8px; color:#1b5e20; }
-  p { font-size:14px; margin:0 0 16px; }
-  a.btn { display:inline-block; padding:12px 20px; background:#1b5e20; color:#fff;
-          text-decoration:none; border-radius:6px; font-weight:bold; }
+  html, body { margin:0; height:100%; font-family: Arial, Helvetica, sans-serif; background:#f4f7f4; }
+  iframe { position:fixed; inset:0; width:100%; height:100%; border:0; background:#fff; }
+  .fallback { position:fixed; left:0; right:0; bottom:0; background:#fff8e1; border-top:1px solid #e0c36b;
+              padding:8px 12px; font-size:12px; text-align:center; z-index:10; display:none; }
+  .fallback a { color:#1b5e20; font-weight:bold; }
 </style>
 </head>
 <body>
-  <div class="box">
-    <h1>Input Absensi Manual</h1>
-    <p>Mengalihkan ke halaman absensi...</p>
-    <a class="btn" href="https://script.google.com/macros/s/AKfycbx2kutG80NBvmmy-Pf5OoTYsVbv_NKryk_eKTY2jiD_aDojFGVm3_mTDJz2OiR9KNYb/exec?halaman=manual">Buka Halaman Absensi</a>
+  <iframe id="app"
+    src="https://script.google.com/macros/s/AKfycbx2kutG80NBvmmy-Pf5OoTYsVbv_NKryk_eKTY2jiD_aDojFGVm3_mTDJz2OiR9KNYb/exec?halaman=manual"
+    allow="camera; microphone; clipboard-write"
+    title="Input Absensi Manual"></iframe>
+
+  <div class="fallback" id="fb">
+    Halaman tidak muncul?
+    <a href="https://script.google.com/macros/s/AKfycbx2kutG80NBvmmy-Pf5OoTYsVbv_NKryk_eKTY2jiD_aDojFGVm3_mTDJz2OiR9KNYb/exec?halaman=manual">Buka langsung</a>
   </div>
+
   <script>
-    window.location.replace("https://script.google.com/macros/s/AKfycbx2kutG80NBvmmy-Pf5OoTYsVbv_NKryk_eKTY2jiD_aDojFGVm3_mTDJz2OiR9KNYb/exec?halaman=manual");
+    // Tampilkan tautan cadangan setelah beberapa detik, kalau-kalau bingkai gagal dimuat
+    setTimeout(function () { document.getElementById('fb').style.display = 'block'; }, 6000);
   </script>
 </body>
 </html>
